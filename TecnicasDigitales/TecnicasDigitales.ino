@@ -15,6 +15,7 @@ const int Trigger = 14;  //Pin digital 2 para el Trigger del sensor
 const int Echo = 12;     //Pin digital 3 para el Echo del sensor
 const int Echo2 = 27;
 const int Trigger2 = 26;
+const int ROOM_LED = 13;
 // Insert Firebase project API Key
 #define API_KEY "AIzaSyA2gv3pjLAAw3Euu2XaU22TCI5RwufHOYQ"
 
@@ -30,6 +31,7 @@ FirebaseConfig config;
 unsigned long sendDataPrevMillis = 0;
 int count = 0;
 bool signupOK = false;
+const int PWM_PIN = 34;
 const int PIN_RED = 18;
 const int PIN_GREEN = 19;
 const int PIN_BLUE = 21;
@@ -151,7 +153,7 @@ void colorUpdater(char color[], int pin) {
     Serial.println("TYPE: " + fbdo.dataType());
     Serial.print("Value: ");
     Serial.println(fbdo.intData());
-    analogWrite(pin, 255-fbdo.intData());
+    analogWrite(pin, 255 - fbdo.intData());
 
   } else {
     Serial.println("FAILED");
@@ -161,11 +163,11 @@ void colorUpdater(char color[], int pin) {
 }
 
 void firebase(/*void* parameter*/) {
-  if (Firebase.ready() && signupOK && (millis() - sendDataPrevMillis > 4000 || sendDataPrevMillis == 0)) {
+  if (Firebase.ready() && signupOK && (millis() - sendDataPrevMillis > 1500 || sendDataPrevMillis == 0)) {
     sendDataPrevMillis = millis();
     colorUpdater("RED", PIN_RED);
-    colorUpdater("GREEN",PIN_GREEN);
-    colorUpdater("BLUE",PIN_BLUE);
+    colorUpdater("GREEN", PIN_GREEN);
+    colorUpdater("BLUE", PIN_BLUE);
     // create function and pass color as parameter. Update 3 colors inside if
   }
 }
@@ -173,8 +175,25 @@ void distancePrinters(/*void* parameter*/) {
   distance(Trigger, Echo);
   distance(Trigger2, Echo2);
 }
+void adjustLedToLight(int led_pin) {
+  int analogValue = analogRead(PWM_PIN);
+  Serial.print("Analog reading: ");
+  Serial.println(analogValue);  // the raw analog reading
+  if (analogValue <= 1800) {
+    analogWrite(led_pin, 150);
+  } else if (analogValue <= 2300) {
+    analogWrite(led_pin, 100);
+  } else if (analogValue <= 3000) {
+    analogWrite(led_pin, 50);
+  } else {
+    analogWrite(led_pin, 0);
+  }
+}
 
 void loop() {
-  firebase();
-  // distancePrinters();
+  //firebase();
+  distancePrinters();
+
+  //adjustLedToLight(ROOM_LED);
+  delay(500);
 }
