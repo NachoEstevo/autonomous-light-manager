@@ -3,28 +3,24 @@
 #include <FirebaseESP32.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
-//Provide the token generation process info.
 #include "addons/TokenHelper.h"
-//Provide the RTDB payload printing info and other helper functions.
 #include "addons/RTDBHelper.h"
 
-// Insert your network credentials
 #define WIFI_SSID "UA-Alumnos"
 #define WIFI_PASSWORD "41umn05WLC"
-const int Trigger = 14;  //Pin digital 2 para el Trigger del sensor
-const int Echo = 12;     //Pin digital 3 para el Echo del sensor
+const int Trigger = 14;
+const int Echo = 12;
 const int Echo2 = 27;
 const int Trigger2 = 26;
-const int ROOM_LED = 13;
-// Insert Firebase project API Key
+const int ROOM_LED = 25;
+const int MICROPHONE_PIN = 33;
+bool clap_trigger = false;
+unsigned long lastClapTime = 0;
+const unsigned long debounceDelay = 200;
+// Insert Firebase SETUP
 #define API_KEY "AIzaSyA2gv3pjLAAw3Euu2XaU22TCI5RwufHOYQ"
-
-// Insert RTDB URLefine the RTDB URL */
 #define DATABASE_URL "https://light-colors-12927-default-rtdb.firebaseio.com/"
-
-//Define Firebase Data object
 FirebaseData fbdo;
-
 FirebaseAuth auth;
 FirebaseConfig config;
 
@@ -39,18 +35,17 @@ int people_count = 0;
 long initDist_1, initDist_2;
 bool isCalibrated = false;
 bool person_passing = false;
+volatile bool clap_trigger_digital = false;
 void setup() {
   Serial.begin(9600);          //iniciailzamos la comunicación
   pinMode(Trigger, OUTPUT);    //pin como salida
   pinMode(Echo, INPUT);        //pin como entrada
   digitalWrite(Trigger, LOW);  //Inicializamos el pin con 0
-
+  pinMode(MICROPHONE_PIN, INPUT_PULLUP);
   pinMode(Trigger2, OUTPUT);
   pinMode(Echo2, INPUT);
   digitalWrite(Trigger2, LOW);
-  // xTaskCreate(firebase, "Firebase ", 10000, NULL, 1, NULL);
-  // xTaskCreate(ultrasonic, "Ultrasonic Sensors", 10000, NULL, 1, NULL);
-
+  attachInterrupt(MICROPHONE_PIN, clapInterrupt, CHANGE);
   connectWifi();
 
   calibrate();
@@ -74,10 +69,7 @@ void connectWifi() {
   Serial.print("Connected with IP: ");
   Serial.println(WiFi.localIP());
   Serial.println();
-  /* Assign the api key (required) */
   config.api_key = API_KEY;
-
-  /* Assign the RTDB URL (required) */
   config.database_url = DATABASE_URL;
   /* Sign up */
   if (Firebase.signUp(&config, &auth, "", "")) {
@@ -92,6 +84,16 @@ void connectWifi() {
 
   Firebase.begin(&config, &auth);
   Firebase.reconnectWiFi(true);
+}
+void clapInterrupt() {
+  unsigned long currentTime = millis();
+  if (currentTime - lastClapTime >= debounceDelay) {
+    lastClapTime = currentTime;
+    clap_trigger_digital = !clap_trigger_digital;
+    digitalWrite(ROOM_LED, clap_trigger_digital);
+    Serial.print("Clap value: ");
+    Serial.println(clap_trigger_digital);
+  }
 }
 void calibrate() {
   initDist_1 = calculateDistance(Trigger, Echo);
@@ -168,18 +170,17 @@ void firebase(/*void* parameter*/) {
     colorUpdater("RED", PIN_RED);
     colorUpdater("GREEN", PIN_GREEN);
     colorUpdater("BLUE", PIN_BLUE);
-    // create function and pass color as parameter. Update 3 colors inside if
   }
 }
 void distancePrinters(/*void* parameter*/) {
   distance(Trigger, Echo);
   distance(Trigger2, Echo2);
 }
-void adjustLedToLight(int led_pin) {
+void adjustLedToLight(int led_pin, int trigger_pin) {
   int analogValue = analogRead(PWM_PIN);
-  Serial.print("Analog reading: ");
-  Serial.println(analogValue);  // the raw analog reading
-  if (analogValue <= 1800) {
+  if (clap_trigger_digital) {
+    analogWrite(led_pin, 0);
+  } else if (analogValue <= 1800) {
     analogWrite(led_pin, 150);
   } else if (analogValue <= 2300) {
     analogWrite(led_pin, 100);
@@ -191,9 +192,8 @@ void adjustLedToLight(int led_pin) {
 }
 
 void loop() {
-  //firebase();
-  distancePrinters();
-
-  //adjustLedToLight(ROOM_LED);
+  // firebase();
+  //distancePrinters();
+  adjustLedToLight(ROOM_LED, MICROPHONE_PIN);
   delay(500);
 }
