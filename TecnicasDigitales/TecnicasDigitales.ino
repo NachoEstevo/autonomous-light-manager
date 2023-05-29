@@ -50,6 +50,12 @@ void setup() {
 
   calibrate();
 
+  Serial.print("initDist1");
+  Serial.println(initDist_1); 
+  Serial.print("initDist2");
+  Serial.println(initDist_2);
+
+
   pinMode(PIN_RED, OUTPUT);
   // pinMode(PIN_GREEN, OUTPUT);
   // pinMode(PIN_BLUE,  OUTPUT);
@@ -101,60 +107,51 @@ void calibrate() {
   isCalibrated = true;
 }
 
-void distance(int trigg, int e) {
+bool inThreashold(int measuredDist, int initDist){
+  return measuredDist <= initDist + initDist * 0.2 + 1 && 
+            measuredDist >= initDist - initDist * 0.2 + 1;
+}
+
+void distance() {
+
+  Serial.println(person_passing);
   // Read distance from Sensor 1
   long distance_1 = calculateDistance(Trigger, Echo);
-  Serial.print("dist1 ");
-  Serial.println(distance_1);
-
   // Read distance from Sensor 2
   long distance_2 = calculateDistance(Trigger2, Echo2);
-  Serial.print("dist2 ");
-  Serial.println(distance_2);
 
-  if (distance_1 == initDist_1 && distance_2 == initDist_2) {
+  if (inThreashold(distance_1, initDist_1) && inThreashold(distance_2, initDist_2)) {
     person_passing = false;
   }
 
-  if (person_passing) {
-    return;
-  }
+  if (person_passing) {return;}
 
   // Compare distance values to threshold
-  if (distance_1 < initDist_1 - 10) {
-    Serial.println("leaving");
+  if (distance_1 < initDist_1 - initDist_1 * 0.2 + 1) {
+    Serial.println("Leaving");
     person_passing = true;
     people_count--;
   }
-
-  if (distance_2 < initDist_2 - 10) {
+  if (distance_2 < initDist_2 - initDist_2 * 0.2 + 1) {
+    Serial.println("Entering");
     person_passing = true;
     people_count++;
   }
-
-  // Print people count to serial monitor
   Serial.print("People count: ");
   Serial.println(people_count);
 
-  delay(100);  // wait a little bit before next reading
-}
-void regulateLight(int lsens) {
+  delay(300);  // wait a little bit before next reading
 }
 
 int calculateDistance(int trigg, int ech) {
   digitalWrite(trigg, HIGH);
-  delayMicroseconds(10);  //Enviamos un pulso de 10us
+  delayMicroseconds(10);
   digitalWrite(trigg, LOW);
-  long t = pulseIn(ech, HIGH);  //obtenemos el ancho del pulso
-  return t / 59;
+  long t = pulseIn(ech, HIGH);
+  return t / 58;
 }
 void colorUpdater(char color[], int pin) {
   if (Firebase.RTDB.getInt(&fbdo, color)) {
-    Serial.println("PASSED");
-    Serial.println("PATH: " + fbdo.dataPath());
-    Serial.println("TYPE: " + fbdo.dataType());
-    Serial.print("Value: ");
-    Serial.println(fbdo.intData());
     analogWrite(pin, 255 - fbdo.intData());
 
   } else {
@@ -172,10 +169,7 @@ void firebase(/*void* parameter*/) {
     colorUpdater("BLUE", PIN_BLUE);
   }
 }
-void distancePrinters(/*void* parameter*/) {
-  distance(Trigger, Echo);
-  distance(Trigger2, Echo2);
-}
+
 void adjustLedToLight(int led_pin, int trigger_pin) {
   int analogValue = analogRead(PWM_PIN);
   if (clap_trigger_digital) {
@@ -192,8 +186,7 @@ void adjustLedToLight(int led_pin, int trigger_pin) {
 }
 
 void loop() {
-  // firebase();
-  //distancePrinters();
-  adjustLedToLight(ROOM_LED, MICROPHONE_PIN);
-  delay(500);
+  //firebase();
+  distance();
+  //adjustLedToLight(ROOM_LED, MICROPHONE_PIN);
 }
