@@ -36,6 +36,8 @@ long initDist_1, initDist_2;
 bool isCalibrated = false;
 bool person_passing = false;
 volatile bool clap_trigger_digital = false;
+void firebase(void* parameter);
+TaskHandle_t firebaseHandle;
 void setup() {
   Serial.begin(9600);          //iniciailzamos la comunicación
   pinMode(Trigger, OUTPUT);    //pin como salida
@@ -48,22 +50,18 @@ void setup() {
   attachInterrupt(MICROPHONE_PIN, clapInterrupt, CHANGE);
   connectWifi();
 
+
   calibrate();
 
   Serial.print("initDist1");
-  Serial.println(initDist_1); 
+  Serial.println(initDist_1);
   Serial.print("initDist2");
   Serial.println(initDist_2);
-
-
-  pinMode(PIN_RED, OUTPUT);
-  // pinMode(PIN_GREEN, OUTPUT);
-  // pinMode(PIN_BLUE,  OUTPUT);
-
-  // analogWrite(PIN_RED,   0);
-  // analogWrite(PIN_GREEN, 151);
-  // analogWrite(PIN_BLUE,  157);
+  xTaskCreate(firebase, "Firebase Task", 10000, NULL, 1, &firebaseHandle);
 }
+
+
+
 void connectWifi() {
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   Serial.print("Connecting to Wi-Fi");
@@ -84,6 +82,7 @@ void connectWifi() {
   } else {
     Serial.printf("%s\n", config.signer.signupError.message.c_str());
   }
+  delay(1500);
 
   /* Assign the callback function for the long running token generation task */
   config.token_status_callback = tokenStatusCallback;  //see addons/TokenHelper.h
@@ -100,6 +99,7 @@ void clapInterrupt() {
     Serial.print("Clap value: ");
     Serial.println(clap_trigger_digital);
   }
+  
 }
 void calibrate() {
   initDist_1 = calculateDistance(Trigger, Echo);
@@ -107,13 +107,11 @@ void calibrate() {
   isCalibrated = true;
 }
 
-bool inThreashold(int measuredDist, int initDist){
-  return measuredDist <= initDist + initDist * 0.2 + 1 && 
-            measuredDist >= initDist - initDist * 0.2 + 1;
+bool inThreashold(int measuredDist, int initDist) {
+  return measuredDist <= initDist + initDist * 0.2 + 1 && measuredDist >= initDist - initDist * 0.2 + 1;
 }
 
 void distance() {
-
   Serial.println(person_passing);
   // Read distance from Sensor 1
   long distance_1 = calculateDistance(Trigger, Echo);
@@ -124,23 +122,27 @@ void distance() {
     person_passing = false;
   }
 
-  if (person_passing) {return;}
-
-  // Compare distance values to threshold
-  if (distance_1 < initDist_1 - initDist_1 * 0.2 + 1) {
-    Serial.println("Leaving");
-    person_passing = true;
-    people_count--;
+  if (!person_passing) {
+    Serial.print("People count: ");
+    Serial.println(people_count);
+    // Compare distance values to threshold
+    if (distance_1 < 40 && distance_2 >= 40/*(initDist_1 - (initDist_1 * 0.1 + 1))*/) {
+      Serial.println("Leaving");
+      person_passing = true;
+      people_count--;
+      delay(100);
+      return;
+    }
+    if (distance_2 < 40/*(initDist_2 - (initDist_2 * 0.1 + 1))*/) {
+      Serial.println("Entering");
+      person_passing = true;
+      people_count++;
+      delay(100);
+      return;
+    }
+    delay(100);
   }
-  if (distance_2 < initDist_2 - initDist_2 * 0.2 + 1) {
-    Serial.println("Entering");
-    person_passing = true;
-    people_count++;
-  }
-  Serial.print("People count: ");
-  Serial.println(people_count);
-
-  delay(300);  // wait a little bit before next reading
+  
 }
 
 int calculateDistance(int trigg, int ech) {
@@ -161,16 +163,23 @@ void colorUpdater(char color[], int pin) {
   count++;
 }
 
-void firebase(/*void* parameter*/) {
-  if (Firebase.ready() && signupOK && (millis() - sendDataPrevMillis > 1500 || sendDataPrevMillis == 0)) {
-    sendDataPrevMillis = millis();
-    colorUpdater("RED", PIN_RED);
-    colorUpdater("GREEN", PIN_GREEN);
-    colorUpdater("BLUE", PIN_BLUE);
+void firebase(void* parameter) {
+  while (true) {
+    if (Firebase.ready() && signupOK && (millis() - sendDataPrevMillis > 1500 || sendDataPrevMillis == 0)) {
+      sendDataPrevMillis = millis();
+      colorUpdater("RED", PIN_RED);
+      colorUpdater("GREEN", PIN_GREEN);
+      colorUpdater("BLUE", PIN_BLUE);
+      vTaskDelay(pdMS_TO_TICKS(1500));  // Pausa de 1 segundo entre iteraciones
+    }
   }
 }
 
 void adjustLedToLight(int led_pin, int trigger_pin) {
+   if(people_count <= 0){
+    analogWrite(led_pin, 0);
+  }
+  else{
   int analogValue = analogRead(PWM_PIN);
   if (clap_trigger_digital) {
     analogWrite(led_pin, 0);
@@ -183,10 +192,11 @@ void adjustLedToLight(int led_pin, int trigger_pin) {
   } else {
     analogWrite(led_pin, 0);
   }
+  }
 }
 
 void loop() {
-  //firebase();
+  adjustLedToLight(ROOM_LED, MICROPHONE_PIN);
   distance();
-  //adjustLedToLight(ROOM_LED, MICROPHONE_PIN);
+
 }
