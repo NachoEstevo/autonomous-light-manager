@@ -7,10 +7,10 @@
 #include "addons/RTDBHelper.h"
 
 //Firebase Setup
-#define WIFI_SSID "UA-Alumnos"
-#define WIFI_PASSWORD "41umn05WLC"
-#define API_KEY "AIzaSyA2gv3pjLAAw3Euu2XaU22TCI5RwufHOYQ"
-#define DATABASE_URL "https://light-colors-12927-default-rtdb.firebaseio.com/"
+#define WIFI_SSID "WIFI-NAME"
+#define WIFI_PASSWORD "WIFI-PASSWORD"
+#define API_KEY "API"
+#define DATABASE_URL "DB_URL"
 FirebaseData fbdo;
 FirebaseAuth auth;
 FirebaseConfig config;
